@@ -1,7 +1,6 @@
 import type { Seat } from '../types/types';
-import { seats } from './mockData';
+import { apiFetch } from './http';
 
 export async function fetchSeats(screenId: string): Promise<Seat[]> {
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  return seats.filter((seat) => seat.screenId === screenId);
+  return apiFetch<Seat[]>(`/api/screens/${screenId}/seats`);
 }

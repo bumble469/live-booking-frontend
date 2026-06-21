@@ -16,22 +16,37 @@ export function ScreensPage() {
     });
   }, [theaterId]);
 
-  if (isLoading) return <p className="p-6">Loading screens...</p>;
+  if (isLoading) return <p className="p-6 text-dust">Loading screens...</p>;
 
   return (
     <div className="mx-auto max-w-xl p-6">
-      <Link to="/theatres" className="text-sm text-blue-600 hover:underline">
+      <Link
+        to="/theatres"
+        className="inline-flex items-center gap-1 font-mono text-xs tracking-wide text-dust transition-colors hover:text-marquee-gold"
+      >
         ← Back to theatres
       </Link>
-      <h1 className="mt-2 mb-4 text-2xl font-semibold text-gray-900">Screens</h1>
-      <div className="flex flex-col gap-3">
+
+      <p className="mt-4 mb-1 font-mono text-xs tracking-[0.3em] text-dust">STEP 2 OF 3</p>
+      <h1 className="mb-6 font-display text-4xl tracking-wide text-ivory">Screens</h1>
+
+      <div className="flex flex-col gap-4">
         {screens.map((screen) => (
           <Link
             key={screen.id}
             to={`/theatres/${theaterId}/screens/${screen.id}`}
-            className="rounded-md border border-gray-200 p-4 font-semibold text-gray-900 transition-colors hover:border-blue-400 hover:bg-blue-50"
+            className="group relative flex items-center justify-between overflow-hidden rounded-lg border border-velvet-800 bg-velvet-900 transition-colors hover:border-marquee-gold-dim hover:bg-velvet-800"
           >
-            {screen.name}
+            <div className="flex-1 px-5 py-4 font-display text-2xl tracking-wide text-ivory">
+              {screen.name}
+            </div>
+
+            <div className="relative flex h-full items-center px-5">
+              <span aria-hidden className="absolute inset-y-0 left-0 border-l-2 border-dashed border-velvet-700" />
+              <span className="font-display text-xl text-marquee-gold transition-transform group-hover:translate-x-1">→</span>
+              <span aria-hidden className="absolute -top-2 left-0 h-4 w-4 -translate-x-1/2 rounded-full bg-velvet-950" />
+              <span aria-hidden className="absolute -bottom-2 left-0 h-4 w-4 -translate-x-1/2 rounded-full bg-velvet-950" />
+            </div>
           </Link>
         ))}
       </div>
