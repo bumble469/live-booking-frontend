@@ -19,3 +19,17 @@ export interface Screen {
   theaterId: string;
   name: string;
 }
+
+export interface BookingConfirmationModalProps {
+  isOpen: boolean;
+  isBooking: boolean;
+  selectedSeats: string[];
+  fullname: string;
+  email: string;
+  phone: string;
+  onFullnameChange: (value: string) => void;
+  onEmailChange: (value: string) => void;
+  onPhoneChange: (value: string) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+};

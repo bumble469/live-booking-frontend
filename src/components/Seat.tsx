@@ -1,4 +1,3 @@
-// src/components/Seat.tsx
 import type { Seat as SeatType } from '../types/types';
 
 interface SeatProps {
@@ -8,13 +7,13 @@ interface SeatProps {
 }
 
 const statusClasses: Record<SeatType['status'], string> = {
-  AVAILABLE: 'bg-emerald-500 hover:bg-emerald-600 cursor-pointer',
-  LOCKED: 'bg-amber-400 cursor-not-allowed',
-  BOOKED: 'bg-red-500 cursor-not-allowed',
+  AVAILABLE: 'bg-seat-available text-ivory hover:bg-emerald-600 cursor-pointer',
+  LOCKED: 'bg-seat-locked text-velvet-950 cursor-not-allowed',
+  BOOKED: 'bg-seat-booked text-ivory cursor-not-allowed',
 };
 
 export function Seat({ seat, isSelected, onClick }: SeatProps) {
-  const isDisabled = seat.status === 'BOOKED' || 
+  const isDisabled = seat.status === 'BOOKED' ||
     (seat.status === 'LOCKED' && !isSelected);
 
   return (
@@ -23,11 +22,11 @@ export function Seat({ seat, isSelected, onClick }: SeatProps) {
       disabled={isDisabled}
       onClick={() => onClick(seat)}
       title={`${seat.row}${seat.number} - ${seat.status}`}
-      className={`flex h-9 w-9 items-center justify-center rounded-md text-xs font-semibold text-white transition-colors ${
+      className={`flex h-8 w-8 items-center justify-center rounded-t-md rounded-b-sm font-mono text-[11px] font-semibold transition-all duration-150 ${
         isSelected
-          ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer ring-2 ring-offset-2 ring-blue-600'
+          ? 'bg-screen-glow text-velvet-950 shadow-[0_0_10px_2px_rgba(191,232,255,0.55)] cursor-pointer ring-2 ring-offset-2 ring-offset-velvet-950 ring-screen-glow'
           : statusClasses[seat.status]
-      } ${isDisabled ? 'opacity-60' : ''}`}
+      } ${isDisabled ? 'opacity-50' : ''}`}
     >
       {seat.number}
     </button>
