@@ -1,6 +1,11 @@
 import { Link } from 'react-router-dom';
+import { useState } from 'react';
+
+type Tab = 'shows' | 'theatres';
 
 export function HomePage() {
+  const [tab, setTab] = useState<Tab>('shows');
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-8 px-6 text-center">
       <div className="flex items-center gap-3">
@@ -10,16 +15,42 @@ export function HomePage() {
       </div>
 
       <h1 className="font-display text-6xl leading-none tracking-wide text-ivory sm:text-7xl">
-        MINI <span className="text-marquee-gold">BOOKMYSHOW</span>
+        SHOW<span className="text-marquee-gold">AHOLIC</span>
       </h1>
 
-      <p className="max-w-sm text-dust">Pick a theatre, pick a screen, pick your seats.</p>
+      <p className="max-w-sm text-dust">Book seats for your favourite shows.</p>
+
+      {/* Tab toggle */}
+      <div className="flex overflow-hidden rounded-md border border-velvet-700">
+        <button
+          type="button"
+          onClick={() => setTab('shows')}
+          className={`px-6 py-2.5 font-mono text-xs tracking-[0.2em] transition-colors ${
+            tab === 'shows'
+              ? 'bg-marquee-gold text-velvet-950'
+              : 'bg-velvet-900 text-dust hover:bg-velvet-800'
+          }`}
+        >
+          BROWSE SHOWS
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('theatres')}
+          className={`px-6 py-2.5 font-mono text-xs tracking-[0.2em] transition-colors ${
+            tab === 'theatres'
+              ? 'bg-marquee-gold text-velvet-950'
+              : 'bg-velvet-900 text-dust hover:bg-velvet-800'
+          }`}
+        >
+          BROWSE THEATRES
+        </button>
+      </div>
 
       <Link
-        to="/theatres"
-        className="group mt-2 inline-flex items-center gap-2 rounded-md bg-marquee-gold px-8 py-3 font-display text-lg tracking-wide text-velvet-950 transition-all hover:scale-[1.03] hover:bg-amber-300"
+        to={tab === 'shows' ? '/shows' : '/theatres'}
+        className="group inline-flex items-center gap-2 rounded-md bg-marquee-gold px-8 py-3 font-display text-lg tracking-wide text-velvet-950 transition-all hover:scale-[1.03] hover:bg-amber-300"
       >
-        View Theatres
+        {tab === 'shows' ? 'Explore Shows' : 'Explore Theatres'}
         <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
       </Link>
 

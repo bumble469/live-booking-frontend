@@ -1,6 +1,5 @@
-// src/pages/SeatsPage.tsx
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Seat } from '../types/types';
 import { fetchSeats } from '../api/seats';
 import { lockSeat, unlockSeat } from '../api/locks';
@@ -10,8 +9,28 @@ import { socket } from '../sockets/socket';
 import { getSessionId } from '../utils/session';
 import { BookingConfirmationDialog } from '../components/BookingConfirmationDialog';
 
+interface SeatsPageState {
+  showTitle?: string;
+  screenName?: string;
+  theatreName?: string;
+  startsAt?: string;
+}
+
+function formatShowtime(iso: string) {
+  return new Date(iso).toLocaleString('en-IN', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
 export function SeatsPage() {
-  const { theaterId, screenId } = useParams<{ theaterId: string; screenId: string }>();
+  const { screeningId } = useParams<{ screeningId: string }>();
+  const location = useLocation();
+  const state = (location.state ?? {}) as SeatsPageState;
   const navigate = useNavigate();
   const sessionId = getSessionId();
 
@@ -19,92 +38,89 @@ export function SeatsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [myLockedSeatIds, setMyLockedSeatIds] = useState<Set<string>>(new Set());
   const [isBooking, setIsBooking] = useState(false);
-
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [fullname, setFullname] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
 
   useEffect(() => {
-    if (!screenId) return;
-    fetchSeats(screenId).then((data) => {
+    if (!screeningId) return;
+    fetchSeats(screeningId).then((data) => {
       setSeats(data);
       setIsLoading(false);
     });
-  }, [screenId]);
+  }, [screeningId]);
 
   useEffect(() => {
-    if (!screenId) return;
+    if (!screeningId) return;
 
     socket.connect();
-    socket.emit('join_screen', screenId);
+    socket.emit('join_screening', screeningId);
 
     socket.on('seat_locked', ({ seatId }: { seatId: string }) => {
       setSeats((prev) => prev.map((s) => (s.id === seatId ? { ...s, status: 'LOCKED' } : s)));
     });
-
     socket.on('seat_unlocked', ({ seatId }: { seatId: string }) => {
       setSeats((prev) => prev.map((s) => (s.id === seatId ? { ...s, status: 'AVAILABLE' } : s)));
     });
-
     socket.on('seat_booked', ({ seatId }: { seatId: string }) => {
       setSeats((prev) => prev.map((s) => (s.id === seatId ? { ...s, status: 'BOOKED' } : s)));
     });
 
     return () => {
-      socket.emit('leave_screen', screenId);
+      socket.emit('leave_screening', screeningId);
       socket.off('seat_locked');
       socket.off('seat_unlocked');
       socket.off('seat_booked');
       socket.disconnect();
     };
-  }, [screenId]);
+  }, [screeningId]);
 
   async function handleSeatClick(seat: Seat) {
-    if (!screenId) return;
+    if (!screeningId) return;
     if (seat.status === 'BOOKED') return;
     if (seat.status === 'LOCKED' && !myLockedSeatIds.has(seat.id)) return;
 
     if (myLockedSeatIds.has(seat.id)) {
       try {
-        await unlockSeat(seat.id, screenId, sessionId);
-        setMyLockedSeatIds((prev) => {
-          const next = new Set(prev);
-          next.delete(seat.id);
-          return next;
-        });
+        await unlockSeat(seat.id, screeningId, sessionId);
+        setMyLockedSeatIds((prev) => { const n = new Set(prev); n.delete(seat.id); return n; });
         setSeats((prev) => prev.map((s) => (s.id === seat.id ? { ...s, status: 'AVAILABLE' } : s)));
-      } catch (err) {
-        console.error('Failed to release lock', err);
-      }
+      } catch { console.error('Failed to release lock'); }
     } else {
       try {
-        await lockSeat(seat.id, screenId, sessionId);
+        await lockSeat(seat.id, screeningId, sessionId);
         setMyLockedSeatIds((prev) => new Set(prev).add(seat.id));
         setSeats((prev) => prev.map((s) => (s.id === seat.id ? { ...s, status: 'LOCKED' } : s)));
-      } catch (err) {
-        alert('This seat was just taken. Please pick another.');
-      }
+      } catch { alert('This seat was just taken. Please pick another.'); }
     }
   }
 
   async function handleConfirm() {
-    if (!screenId || myLockedSeatIds.size === 0) return;
+    if (!screeningId || myLockedSeatIds.size === 0) return;
     setIsBooking(true);
-
     try {
       const { bookingReference } = await createBooking(
         Array.from(myLockedSeatIds),
-        screenId,
+        screeningId,
         sessionId,
         fullname,
         email,
-        phone
+        phone,
+        myLockedSeats.map((s) => `${s.row}${s.number}`)
       );
-      navigate(`/theatres/${theaterId}/screens/${screenId}/confirmation`, {
-        state: { bookingReference },
+      navigate(`/screenings/${screeningId}/confirmation`, {
+        state: {
+          bookingReference,
+          seatLabels: myLockedSeats.map((s) => `${s.row}${s.number}`),
+          fullname,
+          email,
+          showTitle: state.showTitle,
+          startsAt: state.startsAt,
+          theatreName: state.theatreName,
+        },
       });
-    } catch (err) {
+    } catch {
       alert('Booking failed. Your lock may have expired. Please try again.');
       setIsBooking(false);
     }
@@ -116,15 +132,29 @@ export function SeatsPage() {
 
   return (
     <div className="mx-auto max-w-xl p-6">
-      <Link
-        to={`/theatres/${theaterId}`}
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
         className="inline-flex items-center gap-1 font-mono text-xs tracking-wide text-dust transition-colors hover:text-marquee-gold"
       >
-        ← Back to screens
-      </Link>
+        ← Back
+      </button>
 
-      <p className="mt-4 mb-1 font-mono text-xs tracking-[0.3em] text-dust">STEP 3 OF 3</p>
-      <h1 className="mb-6 font-display text-4xl tracking-wide text-ivory">Select Your Seats</h1>
+      <div className="mt-4 mb-6">
+        <p className="font-mono text-[10px] tracking-[0.3em] text-dust">SELECT SEATS</p>
+        <h1 className="font-display text-4xl tracking-wide text-ivory">
+          {state.showTitle ?? 'Seat Selection'}
+        </h1>
+        {state.startsAt && (
+          <p className="mt-1 font-mono text-xs text-dust">
+            {formatShowtime(state.startsAt)}
+            {state.screenName && ` · ${state.screenName}`}
+          </p>
+        )}
+        {state.theatreName && (
+          <p className="font-mono text-xs text-dust">{state.theatreName}</p>
+        )}
+      </div>
 
       <SeatMap seats={seats} selectedSeatIds={myLockedSeatIds} onSeatClick={handleSeatClick} />
 
@@ -163,12 +193,11 @@ export function SeatsPage() {
           </button>
         </div>
       </div>
+
       <BookingConfirmationDialog
         isOpen={showBookingModal}
         isBooking={isBooking}
-        selectedSeats={myLockedSeats.map(
-          (seat) => `${seat.row}${seat.number}`
-        )}
+        selectedSeats={myLockedSeats.map((s) => `${s.row}${s.number}`)}
         fullname={fullname}
         email={email}
         phone={phone}

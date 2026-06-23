@@ -33,3 +33,24 @@ export interface BookingConfirmationModalProps {
   onConfirm: () => void;
   onClose: () => void;
 };
+
+export interface Show {
+  id: string;
+  title: string;
+  description?: string;
+  durationMinutes: number;
+  posterUrl?: string;
+}
+
+export interface Screening {
+  id: string;
+  showId: string;
+  showTitle: string;
+  screenId: string;
+  screenName: string;
+  theatreId: string;
+  theatreName: string;
+  theatreCity: string;
+  startsAt: string;     
+  endsAt: string;       
+}
