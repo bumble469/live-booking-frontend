@@ -6,6 +6,7 @@ export interface Seat {
   row: string;
   number: number;
   status: SeatStatus;
+  lockedBy: string | null;
 }
 
 export interface Theater {
@@ -32,6 +33,8 @@ export interface BookingConfirmationModalProps {
   onPhoneChange: (value: string) => void;
   onConfirm: () => void;
   onClose: () => void;
+  isEmailVerified: boolean;                    
+  onEmailVerified: (email: string) => void;   
 };
 
 export interface Show {
@@ -52,5 +55,16 @@ export interface Screening {
   theatreName: string;
   theatreCity: string;
   startsAt: string;     
-  endsAt: string;       
+  endsAt: string;     
+  totalSeats: number;     
+  availableSeats: number;  
 }
+
+export interface FeaturedShow {
+  id: number;
+  title: string;
+  description: string | null;
+  posterUrl: string | null;
+  startsAt: string;
+}
+

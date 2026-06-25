@@ -42,11 +42,21 @@ export function SeatsPage() {
   const [fullname, setFullname] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
 
   useEffect(() => {
     if (!screeningId) return;
     fetchSeats(screeningId).then((data) => {
       setSeats(data);
+
+      const mine = data
+        .filter((s) => s.status === 'LOCKED' && s.lockedBy === sessionId)
+        .map((s) => s.id);
+
+      if (mine.length > 0) {
+        setMyLockedSeatIds(new Set(mine));
+      }
+
       setIsLoading(false);
     });
   }, [screeningId]);
@@ -205,7 +215,12 @@ export function SeatsPage() {
         onEmailChange={setEmail}
         onPhoneChange={setPhone}
         onConfirm={handleConfirm}
-        onClose={() => setShowBookingModal(false)}
+        onClose={() => {
+          setShowBookingModal(false);
+          setIsEmailVerified(false);
+        }}
+        isEmailVerified={isEmailVerified}
+        onEmailVerified={() => setIsEmailVerified(true)}
       />
     </div>
   );
