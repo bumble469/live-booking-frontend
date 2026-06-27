@@ -75,6 +75,8 @@ function ShowCard({ show }: { show: Show }) {
             alt={show.title}
             loading="lazy"
             decoding="async"
+            width={400}
+            height={600}
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (

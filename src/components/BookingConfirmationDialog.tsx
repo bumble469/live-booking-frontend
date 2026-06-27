@@ -22,9 +22,7 @@ export function BookingConfirmationDialog({
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [otpError, setOtpError] = useState('');
-  const [secondsLeft, setSecondsLeft] = useState(0);
-
-  if (!isOpen) return null;
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null); // null = timer not started yet
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isValidEmail = emailRegex.test(email.trim());
@@ -32,19 +30,22 @@ export function BookingConfirmationDialog({
   const isFormValid =
     isValidEmail && isValidPhone && fullname.trim() !== '' && isEmailVerified;
 
-  const minutes = Math.floor(secondsLeft / 60);
-  const seconds = secondsLeft % 60;
-  const timerDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  const timerDisplay =
+  secondsLeft !== null
+    ? `${Math.floor(secondsLeft / 60)}:${(secondsLeft % 60).toString().padStart(2, '0')}`
+    : '';
+
+  // Only expired when the timer has actually started AND reached zero
   const isOtpExpired = otpSent && !isEmailVerified && secondsLeft === 0;
 
   useEffect(() => {
-    if (!otpSent || isEmailVerified) return;
+    if (!otpSent || isEmailVerified || !isOpen) return;
 
     setSecondsLeft(3 * 60);
 
     const interval = setInterval(() => {
       setSecondsLeft((prev) => {
-        if (prev <= 1) {
+        if (prev === null || prev <= 1) {
           clearInterval(interval);
           return 0;
         }
@@ -52,12 +53,13 @@ export function BookingConfirmationDialog({
       });
     }, 1000);
 
-    return clearInterval(interval);
-  }, [otpSent, isEmailVerified]);
+    return () => clearInterval(interval); // ✅ cleanup function, not an immediate call
+  }, [otpSent, isEmailVerified, isOpen]);
 
   async function handleSendOTP() {
     setIsSendingOtp(true);
     setOtpError('');
+    setSecondsLeft(null); // reset so expired state doesn't flash on resend
     try {
       await sendOTP(email.trim());
       setOtpSent(true);
@@ -85,12 +87,12 @@ export function BookingConfirmationDialog({
     }
   }
 
-  // Reset OTP state when email changes
   function handleEmailChange(value: string) {
     onEmailChange(value);
     setOtpSent(false);
     setOtp('');
     setOtpError('');
+    setSecondsLeft(null);
   }
 
   return (
@@ -156,18 +158,18 @@ export function BookingConfirmationDialog({
               <p className="mt-1 text-xs text-red-400">Please enter a valid email address.</p>
             )}
 
-            {/* OTP input — shown after Send OTP, hidden once verified */}
+            {/* OTP input */}
             {otpSent && !isEmailVerified && (
               <div className="mt-2 space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="font-mono text-[10px] tracking-widest text-dust">OTP SENT</p>
                   {isOtpExpired ? (
                     <p className="font-mono text-[10px] text-red-400">OTP expired — resend</p>
-                  ) : (
+                  ) : secondsLeft !== null ? (
                     <p className="font-mono text-[10px] text-marquee-gold">
                       Expires in {timerDisplay}
                     </p>
-                  )}
+                  ) : null}
                 </div>
                 <div className="flex gap-2">
                   <input
@@ -214,7 +216,7 @@ export function BookingConfirmationDialog({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 cursor-pointer rounded-md border border-velvet-700 px-4 py-3 font-mono text-sm text-dust transition hover:bg-velvet-800"
+            className="flex-1 cursor-pointer rounded-md border border-velvet-700 px-4 py-3 font-mono text-sm text-dust transition hover:bg-velvet-400"
           >
             Cancel
           </button>
