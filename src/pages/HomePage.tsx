@@ -59,6 +59,9 @@ export function HomePage() {
               src={show.posterUrl ?? ''}
               alt={show.title}
               className="h-full w-full object-cover object-center"
+              loading={i === index ? "eager" : "lazy"}
+              decoding="async"
+              fetchPriority={i === index ? "high" : "low"}
             />
             <div className="absolute inset-0" style={{ background: 'rgba(28,16,20,0.78)' }} />
           </div>
@@ -83,6 +86,9 @@ export function HomePage() {
                   src={show.posterUrl ?? ''}
                   alt={show.title}
                   className="h-full w-full object-cover object-center"
+                  loading={i === index ? "eager" : "lazy"}
+                  decoding="async"
+                  fetchPriority={i === index ? "high" : "low"}
                 />
                 {/* subtle right-side fade so it bleeds into the content panel */}
                 <div

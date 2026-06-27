@@ -7,6 +7,7 @@ import { TheatresPage } from './pages/TheatresPage';
 import { TheatreShowsPage } from './pages/TheatreShowsPage';
 import { SeatsPage } from './pages/SeatsPage';
 import { ConfirmationPage } from './pages/ConfirmationPage';
+import { CancelBookingPage } from './pages/CancelBookingPage';
 
 function App() {
   return (
@@ -25,6 +26,8 @@ function App() {
       {/* Seat selection — screening-scoped */}
       <Route path="/screenings/:screeningId/seats" element={<SeatsPage />} />
       <Route path="/screenings/:screeningId/confirmation" element={<ConfirmationPage />} />
+
+      <Route path="/cancel" element={<CancelBookingPage />} />
     </Routes>
   );
 }

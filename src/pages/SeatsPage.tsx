@@ -73,8 +73,10 @@ export function SeatsPage() {
     socket.on('seat_unlocked', ({ seatId }: { seatId: string }) => {
       setSeats((prev) => prev.map((s) => (s.id === seatId ? { ...s, status: 'AVAILABLE' } : s)));
     });
-    socket.on('seat_booked', ({ seatId }: { seatId: string }) => {
-      setSeats((prev) => prev.map((s) => (s.id === seatId ? { ...s, status: 'BOOKED' } : s)));
+    socket.on('seat_booked', ({ seatIds }: { seatIds: string[] }) => {
+      setSeats((prev) =>
+        prev.map((s) => (seatIds.includes(s.id) ? { ...s, status: 'BOOKED' } : s))
+      );
     });
 
     return () => {
@@ -117,7 +119,11 @@ export function SeatsPage() {
         fullname,
         email,
         phone,
-        myLockedSeats.map((s) => `${s.row}${s.number}`)
+        myLockedSeats.map((s) => `${s.row}${s.number}`),
+        state.showTitle ?? '',
+        state.screenName ?? '',
+        state.theatreName ?? '',
+        state.startsAt ?? ''
       );
       navigate(`/screenings/${screeningId}/confirmation`, {
         state: {
@@ -204,24 +210,26 @@ export function SeatsPage() {
         </div>
       </div>
 
-      <BookingConfirmationDialog
-        isOpen={showBookingModal}
-        isBooking={isBooking}
-        selectedSeats={myLockedSeats.map((s) => `${s.row}${s.number}`)}
-        fullname={fullname}
-        email={email}
-        phone={phone}
-        onFullnameChange={setFullname}
-        onEmailChange={setEmail}
-        onPhoneChange={setPhone}
-        onConfirm={handleConfirm}
-        onClose={() => {
-          setShowBookingModal(false);
-          setIsEmailVerified(false);
-        }}
-        isEmailVerified={isEmailVerified}
-        onEmailVerified={() => setIsEmailVerified(true)}
-      />
+      {showBookingModal && (
+        <BookingConfirmationDialog
+          isOpen={showBookingModal}
+          isBooking={isBooking}
+          selectedSeats={myLockedSeats.map((s) => `${s.row}${s.number}`)}
+          fullname={fullname}
+          email={email}
+          phone={phone}
+          onFullnameChange={setFullname}
+          onEmailChange={setEmail}
+          onPhoneChange={setPhone}
+          onConfirm={handleConfirm}
+          onClose={() => {
+            setShowBookingModal(false);
+            setIsEmailVerified(false);
+          }}
+          isEmailVerified={isEmailVerified}
+          onEmailVerified={() => setIsEmailVerified(true)}
+        />
+      )}
     </div>
   );
 }
