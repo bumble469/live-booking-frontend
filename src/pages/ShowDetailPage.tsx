@@ -4,6 +4,7 @@ import type { Show, Screening } from '../types/types';
 import { fetchShow } from '../api/shows';
 import { fetchScreeningsByShow } from '../api/screenings';
 import { TheatreCard } from '../components/TheatreCard';
+import { PageLoader } from '../components/Spinner';
 
 export function ShowDetailPage() {
   const { showId } = useParams<{ showId: string }>();
@@ -22,7 +23,7 @@ export function ShowDetailPage() {
     );
   }, [showId]);
 
-  if (isLoading) return <p className="p-6 text-dust">Loading...</p>;
+  if (isLoading) return <PageLoader />;
   if (!show) return <p className="p-6 text-dust">Show not found.</p>;
 
   const byTheatre = screenings.reduce<Record<string, Screening[]>>((acc, s) => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Seat } from '../types/types';
 import { fetchSeats } from '../api/seats';
@@ -8,6 +8,8 @@ import { SeatMap } from '../components/SeatMap';
 import { socket } from '../sockets/socket';
 import { getSessionId } from '../utils/session';
 import { BookingConfirmationDialog } from '../components/BookingConfirmationDialog';
+import { useSnackbar } from '../components/Snackbar';
+import { PageLoader } from '../components/Spinner';
 
 interface SeatsPageState {
   showTitle?: string;
@@ -27,12 +29,19 @@ function formatShowtime(iso: string) {
   });
 }
 
+function formatCountdown(seconds: number) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 export function SeatsPage() {
   const { screeningId } = useParams<{ screeningId: string }>();
   const location = useLocation();
   const state = (location.state ?? {}) as SeatsPageState;
   const navigate = useNavigate();
   const sessionId = getSessionId();
+  const { showSnackbar } = useSnackbar();
 
   const [seats, setSeats] = useState<Seat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,22 +53,49 @@ export function SeatsPage() {
   const [phone, setPhone] = useState('');
   const [isEmailVerified, setIsEmailVerified] = useState(false);
 
+  const [lockExpiresAt, setLockExpiresAt] = useState<Date | null>(null);
+  const [lockSecondsLeft, setLockSecondsLeft] = useState<number | null>(null);
+  const [locksExpired, setLocksExpired] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
     if (!screeningId) return;
     fetchSeats(screeningId).then((data) => {
       setSeats(data);
-
       const mine = data
         .filter((s) => s.status === 'LOCKED' && s.lockedBy === sessionId)
         .map((s) => s.id);
-
-      if (mine.length > 0) {
-        setMyLockedSeatIds(new Set(mine));
-      }
-
+      if (mine.length > 0) setMyLockedSeatIds(new Set(mine));
       setIsLoading(false);
     });
   }, [screeningId]);
+
+  useEffect(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    if (!lockExpiresAt) {
+      setLockSecondsLeft(null);
+      setLocksExpired(false);
+      return;
+    }
+
+    const tick = () => {
+      const diff = Math.max(0, Math.floor((lockExpiresAt.getTime() - Date.now()) / 1000));
+      setLockSecondsLeft(diff);
+      if (diff === 0) {
+        setLocksExpired(true);
+        setLockExpiresAt(null); // stops this effect loop
+        if (timerRef.current) clearInterval(timerRef.current);
+      }
+    };
+
+    tick(); 
+    timerRef.current = setInterval(tick, 1000);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [lockExpiresAt]);
 
   useEffect(() => {
     if (!screeningId) return;
@@ -70,9 +106,19 @@ export function SeatsPage() {
     socket.on('seat_locked', ({ seatId }: { seatId: string }) => {
       setSeats((prev) => prev.map((s) => (s.id === seatId ? { ...s, status: 'LOCKED' } : s)));
     });
+
     socket.on('seat_unlocked', ({ seatId }: { seatId: string }) => {
       setSeats((prev) => prev.map((s) => (s.id === seatId ? { ...s, status: 'AVAILABLE' } : s)));
+
+      setMyLockedSeatIds((prev) => {
+        if (!prev.has(seatId)) return prev;
+        const next = new Set(prev);
+        next.delete(seatId);
+        if (next.size === 0) setLockExpiresAt(null);
+        return next;
+      });
     });
+
     socket.on('seat_booked', ({ seatIds }: { seatIds: string[] }) => {
       setSeats((prev) =>
         prev.map((s) => (seatIds.includes(s.id) ? { ...s, status: 'BOOKED' } : s))
@@ -96,15 +142,37 @@ export function SeatsPage() {
     if (myLockedSeatIds.has(seat.id)) {
       try {
         await unlockSeat(seat.id, screeningId, sessionId);
-        setMyLockedSeatIds((prev) => { const n = new Set(prev); n.delete(seat.id); return n; });
-        setSeats((prev) => prev.map((s) => (s.id === seat.id ? { ...s, status: 'AVAILABLE' } : s)));
-      } catch { console.error('Failed to release lock'); }
+        setMyLockedSeatIds((prev) => {
+          const next = new Set(prev);
+          next.delete(seat.id);
+          if (next.size === 0) {
+            setLockExpiresAt(null);
+            setLocksExpired(false);
+          }
+          return next;
+        });
+        setSeats((prev) =>
+          prev.map((s) => (s.id === seat.id ? { ...s, status: 'AVAILABLE' } : s))
+        );
+      } catch {
+        console.error('Failed to release lock');
+      }
     } else {
       try {
-        await lockSeat(seat.id, screeningId, sessionId);
+        setLocksExpired(false);
+        const result = await lockSeat(seat.id, screeningId, sessionId);
         setMyLockedSeatIds((prev) => new Set(prev).add(seat.id));
-        setSeats((prev) => prev.map((s) => (s.id === seat.id ? { ...s, status: 'LOCKED' } : s)));
-      } catch { alert('This seat was just taken. Please pick another.'); }
+        setSeats((prev) =>
+          prev.map((s) => (s.id === seat.id ? { ...s, status: 'LOCKED' } : s))
+        );
+        // Track the EARLIEST expiry across all locked seats
+        if (result.lockExpiresAt) {
+          const newExpiry = new Date(result.lockExpiresAt);
+          setLockExpiresAt((prev) => (!prev || newExpiry < prev ? newExpiry : prev));
+        }
+      } catch {
+        showSnackbar('This seat was just taken. Please pick another.', 'error');
+      }
     }
   }
 
@@ -137,14 +205,23 @@ export function SeatsPage() {
         },
       });
     } catch {
-      alert('Booking failed. Your lock may have expired. Please try again.');
+      showSnackbar('Booking failed. Your lock may have expired. Please try again.', 'error');
       setIsBooking(false);
     }
   }
 
-  if (isLoading) return <p className="p-6 text-dust">Loading seats...</p>;
+  if (isLoading) return <PageLoader />;
 
   const myLockedSeats = seats.filter((s) => myLockedSeatIds.has(s.id));
+
+  const timerColor =
+    lockSecondsLeft === null
+      ? ''
+      : lockSecondsLeft <= 30
+      ? 'text-red-400'
+      : lockSecondsLeft <= 60
+      ? 'text-amber-400'
+      : 'text-green-400';
 
   return (
     <div className="mx-auto max-w-xl p-6">
@@ -183,17 +260,39 @@ export function SeatsPage() {
 
       <div className="mt-8 overflow-hidden rounded-lg border border-velvet-800 bg-velvet-900">
         <div className="px-5 py-4">
-          <p className="font-mono text-[10px] tracking-[0.3em] text-dust">YOUR SELECTION</p>
-          <p className="mt-1 font-display text-xl tracking-wide text-ivory">
-            {myLockedSeats.length === 0
-              ? 'No seats selected'
-              : `${myLockedSeats.length} seat${myLockedSeats.length > 1 ? 's' : ''}`}
-          </p>
-          {myLockedSeats.length > 0 && (
-            <p className="mt-1 font-mono text-sm text-marquee-gold">
-              {myLockedSeats.map((s) => `${s.row}${s.number}`).join(' · ')}
-            </p>
-          )}
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="font-mono text-[10px] tracking-[0.3em] text-dust">YOUR SELECTION</p>
+              <p className="mt-1 font-display text-xl tracking-wide text-ivory">
+                {myLockedSeats.length === 0
+                  ? 'No seats selected'
+                  : `${myLockedSeats.length} seat${myLockedSeats.length > 1 ? 's' : ''}`}
+              </p>
+              {myLockedSeats.length > 0 && (
+                <p className="mt-1 font-mono text-sm text-marquee-gold">
+                  {myLockedSeats.map((s) => `${s.row}${s.number}`).join(' · ')}
+                </p>
+              )}
+            </div>
+
+            {/* Timer */}
+            {myLockedSeats.length > 0 && (
+              <div className="text-right">
+                <p className="font-mono text-[10px] tracking-[0.2em] text-dust">
+                  {locksExpired ? 'EXPIRED' : 'EXPIRES IN'}
+                </p>
+                {locksExpired ? (
+                  <p className="mt-1 font-mono text-sm text-red-400">
+                    Seats released — reselect
+                  </p>
+                ) : lockSecondsLeft !== null ? (
+                  <p className={`mt-1 font-mono text-xl font-bold tabular-nums ${timerColor}`}>
+                    {formatCountdown(lockSecondsLeft)}
+                  </p>
+                ) : null}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="relative border-t-2 border-dashed border-velvet-700 px-5 py-4">
@@ -201,7 +300,7 @@ export function SeatsPage() {
           <span aria-hidden className="absolute -top-2 right-0 h-4 w-4 translate-x-1/2 rounded-full bg-velvet-950" />
           <button
             type="button"
-            disabled={myLockedSeats.length === 0 || isBooking}
+            disabled={myLockedSeats.length === 0 || isBooking || locksExpired}
             onClick={() => setShowBookingModal(true)}
             className="w-full cursor-pointer rounded-md bg-marquee-gold px-5 py-3 font-display text-lg tracking-wide text-velvet-950 transition-all hover:scale-[1.01] hover:bg-amber-300 disabled:cursor-not-allowed disabled:scale-100 disabled:bg-velvet-700 disabled:text-dust"
           >

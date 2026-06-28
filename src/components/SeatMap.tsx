@@ -12,7 +12,6 @@ export function SeatMap({ seats, selectedSeatIds, onSeatClick }: SeatMapProps) {
 
   return (
     <div className="flex flex-col items-center gap-8">
-      {/* the screen */}
       <div className="flex w-full flex-col items-center gap-2">
         <div
           className="h-2 w-full max-w-md rounded-[50%] bg-screen-glow"
@@ -24,20 +23,27 @@ export function SeatMap({ seats, selectedSeatIds, onSeatClick }: SeatMapProps) {
         <span className="font-mono text-[10px] tracking-[0.4em] text-dust">SCREEN</span>
       </div>
 
-      <div className="flex flex-col items-center gap-2">
-        {rows.map((row) => (
-          <div key={row} className="flex items-center gap-3">
-            <span className="w-4 font-display text-lg text-marquee-gold">{row}</span>
-            <div className="flex gap-1.5">
-              {seats
-                .filter((s) => s.row === row)
-                .sort((a, b) => a.number - b.number)
-                .map((seat) => (
-                  <Seat key={seat.id} seat={seat} isSelected={selectedSeatIds.has(seat.id)} onClick={onSeatClick} />
-                ))}
+      <div className="w-full overflow-x-auto pb-2">
+        <div className="mx-auto flex min-w-max flex-col items-center gap-2">
+          {rows.map((row) => (
+            <div key={row} className="flex items-center gap-3">
+              <span className="w-4 font-display text-lg text-marquee-gold">{row}</span>
+              <div className="flex gap-1.5">
+                {seats
+                  .filter((s) => s.row === row)
+                  .sort((a, b) => a.number - b.number)
+                  .map((seat) => (
+                    <Seat
+                      key={seat.id}
+                      seat={seat}
+                      isSelected={selectedSeatIds.has(seat.id)}
+                      onClick={onSeatClick}
+                    />
+                  ))}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

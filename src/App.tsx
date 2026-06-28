@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { HomePage } from './pages/HomePage';
 import { ShowsPage } from './pages/ShowsPage';
 import { ShowDetailPage } from './pages/ShowDetailPage';
@@ -10,25 +10,22 @@ import { ConfirmationPage } from './pages/ConfirmationPage';
 import { CancelBookingPage } from './pages/CancelBookingPage';
 
 function App() {
+  const location = useLocation();
+
   return (
-    <Routes>
-      <Route path="/" element={<HomePage />} />
-
-      {/* Browse by show */}
-      <Route path="/shows" element={<ShowsPage />} />
-      <Route path="/shows/:showId" element={<ShowDetailPage />} />
-      <Route path="/shows/:showId/theatres/:theatreId" element={<ScreeningsPage />} />
-
-      {/* Browse by theatre */}
-      <Route path="/theatres" element={<TheatresPage />} />
-      <Route path="/theatres/:theatreId" element={<TheatreShowsPage />} />
-
-      {/* Seat selection — screening-scoped */}
-      <Route path="/screenings/:screeningId/seats" element={<SeatsPage />} />
-      <Route path="/screenings/:screeningId/confirmation" element={<ConfirmationPage />} />
-
-      <Route path="/cancel" element={<CancelBookingPage />} />
-    </Routes>
+    <div key={location.pathname} className="animate-[page-in_0.3s_ease-out]">
+      <Routes location={location}>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/shows" element={<ShowsPage />} />
+        <Route path="/shows/:showId" element={<ShowDetailPage />} />
+        <Route path="/shows/:showId/theatres/:theatreId" element={<ScreeningsPage />} />
+        <Route path="/theatres" element={<TheatresPage />} />
+        <Route path="/theatres/:theatreId" element={<TheatreShowsPage />} />
+        <Route path="/screenings/:screeningId/seats" element={<SeatsPage />} />
+        <Route path="/screenings/:screeningId/confirmation" element={<ConfirmationPage />} />
+        <Route path="/cancel" element={<CancelBookingPage />} />
+      </Routes>
+    </div>
   );
 }
 

@@ -4,6 +4,7 @@ import type { Screening, Show } from '../types/types';
 import { fetchScreeningsByShowAndTheatre } from '../api/screenings';
 import { fetchShow } from '../api/shows';
 import { socket } from '../sockets/socket';
+import { PageLoader } from '../components/Spinner';
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString('en-IN', {
@@ -33,7 +34,6 @@ export function ScreeningsPage() {
   const [show, setShow] = useState<Show | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch data
   useEffect(() => {
     if (!showId || !theatreId) return;
     Promise.all([
@@ -46,7 +46,6 @@ export function ScreeningsPage() {
     });
   }, [showId, theatreId]);
 
-  // Effect 1: join/leave rooms when the set of screenings changes
   const screeningIdsKey = screenings.map((s) => s.id).join(',');
 
   useEffect(() => {
@@ -62,7 +61,6 @@ export function ScreeningsPage() {
     };
   }, [screeningIdsKey]);
 
-  // Effect 2: register listener exactly once — safe because setter uses prev => ...
   useEffect(() => {
     socket.on(
       'availability_update',
@@ -82,7 +80,7 @@ export function ScreeningsPage() {
     return () => { socket.off('availability_update'); };
   }, []);
 
-  if (isLoading) return <p className="p-6 text-dust">Loading screenings...</p>;
+  if (isLoading) return <PageLoader />;
 
   const byDate = screenings.reduce<Record<string, Screening[]>>((acc, s) => {
     const date = new Date(s.startsAt).toDateString();

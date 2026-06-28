@@ -15,6 +15,14 @@ export interface Theater {
   city: string;
 }
 
+export interface TheatersPage {
+  theaters: Theater[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export interface Screen {
   id: string;
   theaterId: string;
@@ -43,6 +51,14 @@ export interface Show {
   description?: string;
   durationMinutes: number;
   posterUrl?: string;
+}
+
+export interface ShowsPage {
+  shows: Show[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export interface Screening {
