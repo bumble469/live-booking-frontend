@@ -59,6 +59,7 @@ export function BookingConfirmationDialog({
   async function handleSendOTP() {
     setIsSendingOtp(true);
     setOtpError('');
+    setOtpSent(false);    
     setSecondsLeft(null); // reset so expired state doesn't flash on resend
     try {
       await sendOTP(email.trim());

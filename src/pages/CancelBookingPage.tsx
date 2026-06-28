@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { lookupBookingForCancel, cancelBooking } from '../api/bookings';
+import { sendOTP, confirmOTP } from '../api/verification';
+import { Spinner } from '../components/Spinner';
 
-type Step = 'lookup' | 'confirm' | 'done';
+type Step = 'lookup' | 'otp' | 'confirm' | 'done';
 
 function formatShowtime(iso: string) {
   return new Date(iso).toLocaleString('en-IN', {
@@ -14,6 +16,12 @@ function formatShowtime(iso: string) {
     minute: '2-digit',
     hour12: true,
   });
+}
+
+function formatCountdown(seconds: number) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 interface BookingInfo {
@@ -28,7 +36,6 @@ interface BookingInfo {
   seatLabels: string[];
 }
 
-
 export function CancelBookingPage() {
   const [searchParams] = useSearchParams();
   const [step, setStep] = useState<Step>('lookup');
@@ -38,6 +45,39 @@ export function CancelBookingPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [error, setError] = useState('');
+
+  // OTP state
+  const [otp, setOtp] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const isOtpExpired = secondsLeft === 0;
+
+  // Countdown timer — starts when OTP step is entered
+  useEffect(() => {
+    if (step !== 'otp') {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setSecondsLeft(null);
+      return;
+    }
+
+    setSecondsLeft(3 * 60);
+
+    const interval = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    timerRef.current = interval;
+    return () => clearInterval(interval);
+  }, [step]);
 
   async function handleLookup() {
     setIsLoading(true);
@@ -49,11 +89,47 @@ export function CancelBookingPage() {
         return;
       }
       setBooking(data);
-      setStep('confirm');
+      // Auto-send OTP immediately after finding the booking
+      await sendOTP(email.trim());
+      setStep('otp');
     } catch {
       setError('No booking found for that reference and email. Please check and try again.');
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleVerifyOTP() {
+    setIsVerifying(true);
+    setError('');
+    try {
+      const { verified } = await confirmOTP(email.trim(), otp.trim());
+      if (verified) {
+        setStep('confirm');
+      } else {
+        setError('Incorrect OTP. Please try again.');
+      }
+    } catch {
+      setError('Verification failed. Please try again.');
+    } finally {
+      setIsVerifying(false);
+    }
+  }
+
+  async function handleResendOTP() {
+    setIsResending(true);
+    setError('');
+    setOtp('');
+    // Reset timer by briefly leaving otp step then returning
+    setStep('lookup');
+    try {
+      await sendOTP(email.trim());
+      setStep('otp');
+    } catch {
+      setError('Failed to resend OTP. Please try again.');
+      setStep('otp');
+    } finally {
+      setIsResending(false);
     }
   }
 
@@ -65,13 +141,15 @@ export function CancelBookingPage() {
       await cancelBooking(booking.bookingReference, booking.email);
       setStep('done');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Cancellation failed. Please try again.';
+      const message =
+        err instanceof Error ? err.message : 'Cancellation failed. Please try again.';
       setError(message);
     } finally {
       setIsCancelling(false);
     }
   }
 
+  // ── DONE ──────────────────────────────────────────────────────────────────
   if (step === 'done') {
     return (
       <div className="mx-auto max-w-xl p-6 text-center">
@@ -94,6 +172,7 @@ export function CancelBookingPage() {
     );
   }
 
+  // ── CONFIRM ───────────────────────────────────────────────────────────────
   if (step === 'confirm' && booking) {
     return (
       <div className="mx-auto max-w-xl p-6">
@@ -101,7 +180,7 @@ export function CancelBookingPage() {
         <h1 className="mt-2 mb-6 font-display text-4xl tracking-wide text-ivory">Are You Sure?</h1>
 
         <div className="overflow-hidden rounded-lg border border-velvet-800 bg-velvet-900">
-          <div className="px-6 py-5 space-y-4">
+          <div className="space-y-4 px-6 py-5">
             <div>
               <p className="font-mono text-[10px] tracking-[0.3em] text-dust">SHOW</p>
               <p className="mt-1 font-display text-xl tracking-wide text-ivory">{booking.showTitle}</p>
@@ -146,14 +225,99 @@ export function CancelBookingPage() {
             onClick={handleCancel}
             className="flex-1 rounded-md bg-red-700 px-4 py-3 font-display text-lg tracking-wide text-ivory transition hover:bg-red-600 disabled:bg-velvet-700 disabled:text-dust"
           >
-            {isCancelling ? 'Cancelling…' : 'Confirm Cancel'}
+            {isCancelling ? (
+              <span className="flex items-center justify-center gap-2">
+                <Spinner size="sm" /> Cancelling…
+              </span>
+            ) : (
+              'Confirm Cancel'
+            )}
           </button>
         </div>
       </div>
     );
   }
 
-  // Step: lookup
+  // ── OTP ───────────────────────────────────────────────────────────────────
+  if (step === 'otp') {
+    return (
+      <div className="mx-auto max-w-xl p-6">
+        <p className="font-mono text-[10px] tracking-[0.3em] text-dust">CANCEL BOOKING</p>
+        <h1 className="mt-2 mb-2 font-display text-4xl tracking-wide text-ivory">Verify It's You</h1>
+        <p className="mb-8 text-sm text-dust">
+          We sent a 6-digit code to{' '}
+          <span className="text-ivory">{email}</span>. Enter it below to proceed.
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="font-mono text-xs tracking-wide text-dust">OTP</label>
+              {secondsLeft !== null && (
+                isOtpExpired ? (
+                  <span className="font-mono text-[10px] text-red-400">Expired</span>
+                ) : (
+                  <span className={`font-mono text-[10px] tabular-nums ${
+                    secondsLeft <= 30 ? 'text-red-400' : secondsLeft <= 60 ? 'text-amber-400' : 'text-green-400'
+                  }`}>
+                    {formatCountdown(secondsLeft)}
+                  </span>
+                )
+              )}
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+              disabled={isOtpExpired}
+              placeholder="——————"
+              className="w-full rounded-md border border-velvet-700 bg-velvet-950 px-3 py-3 text-center font-mono text-2xl tracking-[0.5em] text-ivory outline-none transition focus:border-marquee-gold disabled:opacity-40"
+            />
+          </div>
+
+          {error && <p className="text-sm text-red-400">{error}</p>}
+
+          <button
+            type="button"
+            disabled={otp.length !== 6 || isVerifying || isOtpExpired}
+            onClick={handleVerifyOTP}
+            className="w-full rounded-md bg-marquee-gold px-4 py-3 font-display text-lg tracking-wide text-velvet-950 transition hover:bg-amber-300 disabled:bg-velvet-700 disabled:text-dust disabled:cursor-not-allowed"
+          >
+            {isVerifying ? (
+              <span className="flex items-center justify-center gap-2">
+                <Spinner size="sm" /> Verifying…
+              </span>
+            ) : (
+              'Verify & Continue'
+            )}
+          </button>
+
+          <button
+            type="button"
+            disabled={isResending}
+            onClick={handleResendOTP}
+            className="w-full rounded-md border border-velvet-700 px-4 py-3 font-mono text-sm text-dust transition hover:bg-velvet-800 disabled:opacity-50"
+          >
+            {isResending ? 'Sending…' : 'Resend OTP'}
+          </button>
+        </div>
+
+        <div className="mt-8">
+          <button
+            type="button"
+            onClick={() => { setStep('lookup'); setOtp(''); setError(''); }}
+            className="font-mono text-xs text-dust transition hover:text-marquee-gold"
+          >
+            ← Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── LOOKUP ────────────────────────────────────────────────────────────────
   return (
     <div className="mx-auto max-w-xl p-6">
       <p className="font-mono text-[10px] tracking-[0.3em] text-dust">CANCEL BOOKING</p>
@@ -190,9 +354,15 @@ export function CancelBookingPage() {
           type="button"
           disabled={!ref.trim() || !email.trim() || isLoading}
           onClick={handleLookup}
-          className="w-full rounded-md bg-marquee-gold px-4 py-3 font-display text-lg tracking-wide text-velvet-950 transition hover:bg-amber-300 disabled:bg-velvet-700 disabled:text-dust"
+          className="w-full rounded-md bg-marquee-gold px-4 py-3 font-display text-lg tracking-wide text-velvet-950 transition hover:bg-amber-300 disabled:bg-velvet-700 disabled:text-dust disabled:cursor-not-allowed"
         >
-          {isLoading ? 'Looking up…' : 'Find Booking'}
+          {isLoading ? (
+            <span className="flex items-center justify-center gap-2">
+              <Spinner size="sm" /> Finding booking…
+            </span>
+          ) : (
+            'Find Booking'
+          )}
         </button>
       </div>
 

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { Screening, Show } from '../types/types';
 import { fetchScreeningsByTheatre } from '../api/screenings';
 import { fetchShows } from '../api/shows';
+import { PageLoader } from '../components/Spinner';
 
 export function TheatreShowsPage() {
   const { theatreId } = useParams<{ theatreId: string }>();
@@ -11,16 +12,16 @@ export function TheatreShowsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [query, setQuery] = useState('');
 
-  useEffect(() => {
-    if (!theatreId) return;
-    Promise.all([fetchScreeningsByTheatre(theatreId), fetchShows()]).then(
-      ([screeningData, showsData]) => {
-        setScreenings(screeningData);
-        setShowsMap(Object.fromEntries(showsData.map((s) => [s.id, s])));
-        setIsLoading(false);
-      }
-    );
-  }, [theatreId]);
+ useEffect(() => {
+  if (!theatreId) return;
+  Promise.all([fetchScreeningsByTheatre(theatreId), fetchShows(1, 100)]).then(
+    ([screeningData, showsPage]) => {
+      setScreenings(screeningData);
+      setShowsMap(Object.fromEntries(showsPage.shows.map((s) => [s.id, s])));
+      setIsLoading(false);
+    }
+  );
+}, [theatreId]);
 
   // Dedupe shows for this theatre
   const seen = new Set<string>();
@@ -65,7 +66,7 @@ export function TheatreShowsPage() {
       </div>
 
       {isLoading ? (
-        <p className="text-dust">Loading shows...</p>
+        <PageLoader />
       ) : filtered.length === 0 ? (
         <p className="text-center text-dust">
           {query ? `No shows matching "${query}"` : 'No shows currently running here.'}
