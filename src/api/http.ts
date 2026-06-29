@@ -1,8 +1,7 @@
-// src/api/http.ts
-const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
-if (!BASE_URL) {
-  throw new Error('VITE_API_BASE_URL is not set in .env');
+if (import.meta.env.DEV && !BASE_URL) {
+  console.warn('VITE_API_BASE_URL is not set — API calls will use relative paths');
 }
 
 interface FetchOptions {
